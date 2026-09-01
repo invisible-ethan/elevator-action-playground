@@ -1,15 +1,12 @@
 import Phaser from 'phaser';
 import {
-  COLORS,
   ELEVATOR_SPEED,
   FLOOR_HEIGHT,
   HALLWAY_Y_OFFSET,
 } from '../config/gameConfig';
 import { floorToY, type ShaftDef } from '../data/buildingLayout';
 
-export type ElevatorState = 'idle' | 'moving' | 'player_control';
-
-export class ElevatorCar extends Phaser.GameObjects.Rectangle {
+export class ElevatorCar extends Phaser.GameObjects.Image {
   shaft: ShaftDef;
   carIndex: number;
   currentFloor: number;
@@ -28,20 +25,19 @@ export class ElevatorCar extends Phaser.GameObjects.Rectangle {
     startFloor: number,
   ) {
     const y = floorToY(startFloor) + HALLWAY_Y_OFFSET;
-    super(scene, shaft.x, y, 22, 10, COLORS.elevator);
+    super(scene, shaft.x, y, 'elevator_car');
     scene.add.existing(this);
     this.shaft = shaft;
     this.carIndex = carIndex;
     this.currentFloor = startFloor;
     this.targetFloor = null;
-    this.setStrokeStyle(1, 0xccccdd);
+    this.setDepth(20);
   }
 
   get serviceFloors(): number[] {
     if (!this.shaft.doubleLift || this.carIndex === 0) {
       return this.shaft.serviceFloors;
     }
-  // Top car in double-lift skips lowest 2 floors
     return this.shaft.serviceFloors.filter((f) => f >= 3);
   }
 

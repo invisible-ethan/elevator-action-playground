@@ -2,10 +2,10 @@ export const GAME_WIDTH = 256;
 export const GAME_HEIGHT = 224;
 export const SCALE = 3;
 
-export const FLOOR_HEIGHT = 14;
-export const HALLWAY_Y_OFFSET = 4;
+export const FLOOR_HEIGHT = 22;
+export const HALLWAY_Y_OFFSET = 14;
 export const TOTAL_FLOORS = 30;
-export const BASEMENT_FLOOR = 0; // B1
+export const BASEMENT_FLOOR = 0;
 
 export const PLAYER_SPEED = 60;
 export const PLAYER_JUMP_VELOCITY = -180;
@@ -40,25 +40,7 @@ export const LEVEL_RED_DOORS = (level: number): number =>
 export const LEVEL_BONUS = (level: number): number =>
   Math.min(level * 1000, 10000);
 
-export const COLORS = {
-  background: 0x1a1a2e,
-  hallway: 0x4a4a6a,
-  hallwayDark: 0x2a2a3a,
-  doorBlue: 0x3366cc,
-  doorRed: 0xcc3333,
-  elevator: 0x888899,
-  elevatorCable: 0x666677,
-  player: 0x33cc66,
-  player2: 0x66ccff,
-  enemy: 0x333333,
-  enemySuit: 0x222244,
-  bullet: 0xffff44,
-  lamp: 0xffdd66,
-  escalator: 0xaa8866,
-  car: 0xcc4444,
-  text: 0xffffff,
-  ui: 0xcccccc,
-} as const;
+export { COLORS, HUD_TOP_HEIGHT, HUD_BOTTOM_HEIGHT, PALETTE } from '../graphics/palette';
 
 export const KEYS = {
   P1: {

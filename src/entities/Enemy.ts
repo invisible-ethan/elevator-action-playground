@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import {
-  COLORS,
   ENEMY_SHOOT_INTERVAL,
   ENEMY_SPEED,
   FLOOR_HEIGHT,
@@ -20,6 +19,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   stateTimer = 0;
   inElevator: ElevatorCar | null = null;
   aggression = 1;
+  silhouette = false;
 
   constructor(scene: Phaser.Scene, x: number, floor: number) {
     const y = floorToY(floor) + HALLWAY_Y_OFFSET;
@@ -27,8 +27,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.floor = floor;
-    this.setTint(COLORS.enemySuit);
-    this.setDisplaySize(8, 12);
+    this.setDepth(35);
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setSize(7, 11);
     body.setAllowGravity(false);
@@ -44,6 +43,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     return this.state === 'prone';
   }
 
+  setSilhouette(active: boolean): void {
+    this.silhouette = active;
+    if (active) this.setTint(0xffffff);
+    else this.clearTint();
+  }
+
   die(): void {
     this.state = 'dead';
     this.setVelocity(0, 0);
@@ -57,10 +62,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.facing = dir as 1 | -1;
     this.setFlipX(dir < 0);
 
-    const bullet = new Bullet(this.scene, this.x, this.y - 2);
+    const bullet = new Bullet(this.scene, this.x + dir * 4, this.y - 2);
     bullets.add(bullet);
     bullet.fire(dir as 1 | -1, 'enemy');
-    bullet.setTint(0xff6644);
   }
 
   updateEnemy(
@@ -83,13 +87,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (Math.random() < 0.15 * this.aggression) {
         this.state = 'crouch';
         this.stateTimer = 800;
+        this.setTexture('enemy');
         this.setDisplaySize(8, 7);
       } else if (Math.random() < 0.08 * this.aggression) {
         this.state = 'prone';
         this.stateTimer = 1200;
-        this.setDisplaySize(10, 4);
+        this.setTexture('enemy_prone');
       } else {
         this.state = 'patrol';
+        this.setTexture('enemy');
         this.setDisplaySize(8, 12);
       }
     }
@@ -109,7 +115,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.shootTimer = baseInterval / this.aggression;
     }
 
-    // Board elevators occasionally
     if (!this.inElevator && Math.random() < 0.001 * this.aggression) {
       for (const car of elevators) {
         if (car.currentFloor === this.floor && car.containsX(this.x) && car.occupiedBy === 'none') {

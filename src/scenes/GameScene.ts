@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import {
-  COLORS,
   FLOOR_HEIGHT,
   GAME_HEIGHT,
   GAME_WIDTH,
   HALLWAY_Y_OFFSET,
   KEYS,
+  PALETTE,
   STARTING_LIVES,
   TOTAL_FLOORS,
 } from '../config/gameConfig';
@@ -20,6 +20,8 @@ import { ElevatorCar } from '../entities/Elevator';
 import { Enemy } from '../entities/Enemy';
 import { Player } from '../entities/Player';
 import { Bullet } from '../entities/Bullet';
+import { drawBuilding, getDoorX } from '../graphics/BuildingRenderer';
+import { HudRenderer } from '../graphics/HudRenderer';
 import { AlarmSystem } from '../systems/AlarmSystem';
 import {
   allDocumentsCollected,
@@ -48,13 +50,13 @@ export class GameScene extends Phaser.Scene {
   private activePlayerIndex: 0 | 1 = 0;
   private enemies: Enemy[] = [];
   private bullets!: Phaser.GameObjects.Group;
-  private lamps: Phaser.GameObjects.Rectangle[] = [];
+  private lamps: { x: number; y: number; floor: number; active: boolean; sprite: Phaser.GameObjects.Image }[] = [];
   private scoreManager = new ScoreManager();
   private scoreManager2 = new ScoreManager();
   private alarm = new AlarmSystem();
   private audio = new AudioManager();
   private buildingGraphics!: Phaser.GameObjects.Graphics;
-  private darknessOverlay!: Phaser.GameObjects.Rectangle;
+  private blackoutOverlay!: Phaser.GameObjects.Rectangle;
   private globalDark = false;
   private globalDarkTimer = 0;
   private level = 1;
@@ -64,9 +66,9 @@ export class GameScene extends Phaser.Scene {
   private spawnTimer = 0;
   private gameOver = false;
   private levelComplete = false;
-  private uiText!: Phaser.GameObjects.Text;
-  private alarmText!: Phaser.GameObjects.Text;
+  private hud!: HudRenderer;
   private worldHeight = 0;
+  private highScore = 0;
 
   constructor() {
     super('Game');
@@ -79,6 +81,7 @@ export class GameScene extends Phaser.Scene {
     this.p2Lives = data.p2Lives ?? STARTING_LIVES;
     this.scoreManager.score = data.p1Score ?? 0;
     this.scoreManager2.score = data.p2Score ?? 0;
+    this.highScore = parseInt(localStorage.getItem('ea_highscore') ?? '0', 10);
     this.gameOver = false;
     this.levelComplete = false;
     this.activePlayerIndex = 0;
@@ -92,12 +95,13 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.worldHeight = (TOTAL_FLOORS + 1) * FLOOR_HEIGHT + 30;
     this.physics.world.setBounds(0, 0, GAME_WIDTH, this.worldHeight);
+    this.cameras.main.setBackgroundColor(PALETTE.black);
 
     this.levelConfig = generateLevel(this.level);
     applyLevelToFloors(this.levelConfig);
 
-    this.buildingGraphics = this.add.graphics();
-    this.drawBuilding();
+    this.buildingGraphics = this.add.graphics().setDepth(1);
+    this.redrawBuilding();
 
     this.createElevators();
     this.createLamps();
@@ -114,41 +118,23 @@ export class GameScene extends Phaser.Scene {
       this.player2.setVisible(false);
     }
 
-    this.darknessOverlay = this.add
+    this.blackoutOverlay = this.add
       .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0)
       .setScrollFactor(0)
-      .setDepth(100);
+      .setDepth(150);
 
     this.add
       .image(200, floorToY(BASEMENT_FLOOR) + HALLWAY_Y_OFFSET, 'car')
-      .setOrigin(0.5, 1);
+      .setOrigin(0.5, 1)
+      .setDepth(10);
+
+    this.hud = new HudRenderer(this);
+    this.hud.create();
 
     this.setupInput();
     this.setupCamera();
 
-    this.uiText = this.add
-      .text(4, 4, '', {
-        fontFamily: 'monospace',
-        fontSize: '8px',
-        color: '#ffffff',
-      })
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    this.alarmText = this.add
-      .text(GAME_WIDTH / 2, 14, '', {
-        fontFamily: 'monospace',
-        fontSize: '8px',
-        color: '#ff4444',
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0)
-      .setDepth(101);
-
-    this.alarm.onAlarm = () => {
-      this.alarmText.setText('! ALARM !');
-      this.audio.alarm();
-    };
+    this.alarm.onAlarm = () => this.audio.alarm();
 
     this.scoreManager.onExtraLife = () => {
       this.p1Lives += 1;
@@ -163,7 +149,7 @@ export class GameScene extends Phaser.Scene {
   private setupCamera(): void {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, GAME_WIDTH, this.worldHeight);
-    cam.startFollow(this.player, true, 0.1, 0.1, 0, 60);
+    cam.startFollow(this.player, true, 0.1, 0.1, 0, -20);
   }
 
   private setupInput(): void {
@@ -182,58 +168,8 @@ export class GameScene extends Phaser.Scene {
     return this.activePlayerIndex === 0 ? this.scoreManager : this.scoreManager2;
   }
 
-  private drawBuilding(): void {
-    const g = this.buildingGraphics;
-    g.clear();
-
-    for (const floor of FLOORS) {
-      const y = floorToY(floor.number);
-      const dark = floor.permanentlyDark || this.globalDark;
-      const hallColor = dark ? COLORS.hallwayDark : COLORS.hallway;
-
-      g.fillStyle(COLORS.background, 1);
-      g.fillRect(0, y, GAME_WIDTH, FLOOR_HEIGHT);
-
-      g.fillStyle(hallColor, 1);
-      g.fillRect(0, y + HALLWAY_Y_OFFSET, GAME_WIDTH, 6);
-
-      // Floor number label area
-      g.fillStyle(0x333355, 1);
-      g.fillRect(2, y + 1, 12, 8);
-      // Draw floor number as simple bars (pixel font substitute)
-
-      for (const door of floor.doors) {
-        const dx = door.side === 'left' ? 14 : 234;
-        const color =
-          door.type === 'red'
-            ? door.collected
-              ? 0x662222
-              : COLORS.doorRed
-            : COLORS.doorBlue;
-        g.fillStyle(color, 1);
-        g.fillRect(dx, y + 2, 10, 10);
-        // Door mat
-        g.fillStyle(0x886644, 1);
-        g.fillRect(dx, y + HALLWAY_Y_OFFSET + 4, 10, 2);
-      }
-
-      if (floor.escalatorLeft) {
-        g.fillStyle(COLORS.escalator, 1);
-        g.fillRect(4, y + 1, 8, FLOOR_HEIGHT - 2);
-      }
-      if (floor.escalatorRight) {
-        g.fillStyle(COLORS.escalator, 1);
-        g.fillRect(244, y + 1, 8, FLOOR_HEIGHT - 2);
-      }
-    }
-
-    // Draw shaft columns
-    for (const shaft of SHAFTS) {
-      g.lineStyle(1, COLORS.elevatorCable, 0.5);
-      const topY = floorToY(Math.max(...shaft.serviceFloors));
-      const botY = floorToY(Math.min(...shaft.serviceFloors)) + FLOOR_HEIGHT;
-      g.strokeRect(shaft.x - 12, topY, 24, botY - topY);
-    }
+  private redrawBuilding(): void {
+    drawBuilding(this.buildingGraphics, { globalDark: this.globalDark });
   }
 
   private createElevators(): void {
@@ -241,7 +177,6 @@ export class GameScene extends Phaser.Scene {
       const startFloor = shaft.serviceFloors[0]!;
       const car = new ElevatorCar(this, shaft, 0, startFloor);
       this.elevators.push(car);
-
       if (shaft.doubleLift) {
         const topCar = new ElevatorCar(this, shaft, 1, shaft.serviceFloors.at(-1)!);
         this.elevators.push(topCar);
@@ -252,17 +187,15 @@ export class GameScene extends Phaser.Scene {
   private createLamps(): void {
     for (const floor of FLOORS) {
       if (!floor.hasLamps) continue;
-      const y = floorToY(floor.number) + 1;
+      const y = floorToY(floor.number) + 2;
       for (const lx of [60, 128, 196]) {
-        const lamp = this.add.rectangle(lx, y, 6, 4, COLORS.lamp);
-        lamp.setData('floor', floor.number);
-        lamp.setData('active', true);
-        this.lamps.push(lamp);
+        const sprite = this.add.image(lx, y, 'lamp').setDepth(5);
+        this.lamps.push({ x: lx, y, floor: floor.number, active: true, sprite });
       }
     }
   }
 
-  private getCursors(): { left: boolean; right: boolean; up: boolean; down: boolean; fire: boolean; jump: boolean } {
+  private getCursors() {
     const kb = this.input.keyboard!;
     const keys = this.activePlayerIndex === 0 ? KEYS.P1 : KEYS.P2;
     return {
@@ -275,6 +208,15 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  private applySilhouetteMode(active: boolean): void {
+    const player = this.getActivePlayer();
+    player.setSilhouette(active);
+    if (this.player2) this.player2.setSilhouette(active);
+    for (const enemy of this.enemies) {
+      enemy.setSilhouette(active);
+    }
+  }
+
   update(_time: number, delta: number): void {
     if (this.gameOver || this.levelComplete) return;
 
@@ -284,73 +226,69 @@ export class GameScene extends Phaser.Scene {
 
     this.alarm.update(delta);
 
-    // Update elevators
     for (const car of this.elevators) {
       car.updateCar(delta, speedMult);
     }
 
-    // Player movement
     player.handleMovement(cursors, this.elevators);
     if (cursors.jump) {
       player.jump();
       this.audio.jump();
     }
-    if (cursors.fire && Phaser.Input.Keyboard.JustDown(this.input.keyboard!.addKey(
-      this.activePlayerIndex === 0 ? KEYS.P1.fire : KEYS.P2.fire,
-    ))) {
+    if (
+      cursors.fire &&
+      Phaser.Input.Keyboard.JustDown(
+        this.input.keyboard!.addKey(this.activePlayerIndex === 0 ? KEYS.P1.fire : KEYS.P2.fire),
+      )
+    ) {
       const bullet = player.shoot(this.bullets);
       if (bullet) this.audio.shoot();
     }
 
     player.updatePlayer(delta);
-
-    // Red door interaction
     this.checkRedDoors(player);
-
-    // Basement exit
     this.checkBasementExit(player);
 
-    // Spawn enemies
     this.spawnTimer -= delta;
     if (this.spawnTimer <= 0) {
       this.spawnEnemy();
       this.spawnTimer = 3000 / this.alarm.getEnemyAggressionMultiplier();
     }
 
-    // Update enemies
     const isDark = this.isFloorDark(player.currentFloor);
     for (const enemy of this.enemies) {
       enemy.aggression = this.alarm.getEnemyAggressionMultiplier();
       enemy.updateEnemy(delta, player.x, player.y, isDark, this.elevators, this.bullets);
     }
 
-    // Update bullets
-    this.bullets.getChildren().forEach((b) => {
-      (b as Bullet).update();
-    });
+    this.bullets.getChildren().forEach((b) => (b as Bullet).update());
 
-    // Collisions
     this.handleCombat(player, isDark);
     this.handleCrush(player);
     this.handleLampShots();
 
-    // Darkness timer
+    const silhouette = this.globalDark || isDark;
+    this.applySilhouetteMode(silhouette);
+
     if (this.globalDark) {
       this.globalDarkTimer -= delta;
       if (this.globalDarkTimer <= 0) {
         this.globalDark = false;
-        this.drawBuilding();
+        this.redrawBuilding();
+        for (const lamp of this.lamps) {
+          if (!lamp.active) {
+            lamp.active = true;
+            lamp.sprite.setVisible(true);
+          }
+        }
       }
-      this.darknessOverlay.setAlpha(0.55);
+      this.blackoutOverlay.setAlpha(0.85);
     } else {
-      const floorDark = getFloorDef(player.currentFloor)?.permanentlyDark;
-      this.darknessOverlay.setAlpha(floorDark ? 0.45 : 0);
+      this.blackoutOverlay.setAlpha(isDark ? 0.7 : 0);
     }
 
-    // Camera follow active player
-    this.cameras.main.startFollow(player, true, 0.1, 0.1, 0, 60);
-
-    this.updateUI();
+    this.cameras.main.startFollow(player, true, 0.1, 0.1, 0, -20);
+    this.updateHud();
   }
 
   private isFloorDark(floor: number): boolean {
@@ -364,15 +302,16 @@ export class GameScene extends Phaser.Scene {
 
     for (const door of floor.doors) {
       if (door.type !== 'red' || door.collected) continue;
-      const doorX = door.side === 'left' ? 19 : 239;
-      if (Math.abs(player.x - doorX) < 8 && Math.abs(player.y - (floorToY(floor.number) + HALLWAY_Y_OFFSET)) < 4) {
+      const doorX = getDoorX(door.side);
+      const floorY = floorToY(floor.number) + HALLWAY_Y_OFFSET;
+      if (Math.abs(player.x - doorX) < 8 && Math.abs(player.y - floorY) < 6) {
         player.enterDoor(door.side);
         this.time.delayedCall(600, () => {
           door.collected = true;
           this.getActiveScore().collectDocument();
           this.audio.collect();
           player.exitDoor();
-          this.drawBuilding();
+          this.redrawBuilding();
         });
         break;
       }
@@ -403,26 +342,28 @@ export class GameScene extends Phaser.Scene {
     this.audio.levelComplete();
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20, `LEVEL ${this.level} CLEAR!`, {
-        fontFamily: 'monospace',
-        fontSize: '12px',
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20, `ROUND ${this.level} CLEAR!`, {
+        fontFamily: '"Courier New", monospace',
+        fontSize: '10px',
         color: '#ffff00',
+        resolution: 2,
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(200);
+      .setDepth(250);
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `BONUS ${bonus}`, {
-        fontFamily: 'monospace',
+        fontFamily: '"Courier New", monospace',
         fontSize: '8px',
         color: '#ffffff',
+        resolution: 2,
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(200);
+      .setDepth(250);
 
-  this.time.delayedCall(2500, () => {
+    this.time.delayedCall(2500, () => {
       if (this.numPlayers === 2) {
         this.activePlayerIndex = this.activePlayerIndex === 0 ? 1 : 0;
       }
@@ -456,18 +397,13 @@ export class GameScene extends Phaser.Scene {
     for (const enemy of this.enemies) {
       if (enemy.state === 'dead') continue;
 
-      // Jump kick
-      if (
-        player.state === 'jump' &&
-        Phaser.Math.Distance.Between(player.x, player.y, enemy.x, enemy.y) < 10
-      ) {
+      if (player.state === 'jump' && Phaser.Math.Distance.Between(player.x, player.y, enemy.x, enemy.y) < 10) {
         enemy.die();
         this.getActiveScore().jumpKickEnemy(isDark);
         this.audio.enemyHit();
         continue;
       }
 
-      // Bullet hits
       this.bullets.getChildren().forEach((b) => {
         const bullet = b as Bullet;
         if (!bullet.active) return;
@@ -500,7 +436,6 @@ export class GameScene extends Phaser.Scene {
           this.killPlayer(player);
         }
       }
-
       for (const enemy of this.enemies) {
         if (enemy.state === 'dead') continue;
         if (car.isCrushing(enemy.y, 12) && Math.abs(car.x - enemy.x) < 12) {
@@ -517,19 +452,18 @@ export class GameScene extends Phaser.Scene {
       if (!bullet.active || !bullet.ownerTag.startsWith('player')) return;
 
       for (const lamp of this.lamps) {
-        if (!lamp.getData('active')) continue;
+        if (!lamp.active) continue;
         if (Phaser.Math.Distance.Between(bullet.x, bullet.y, lamp.x, lamp.y) < 6) {
-          lamp.setData('active', false);
-          lamp.setFillStyle(0x444433);
+          lamp.active = false;
+          lamp.sprite.setVisible(false);
           bullet.destroy();
           this.globalDark = true;
           this.globalDarkTimer = 5000;
-          this.drawBuilding();
+          this.redrawBuilding();
 
-          // Check lamp crush on enemies
           for (const enemy of this.enemies) {
             if (enemy.state === 'dead') continue;
-            if (Math.abs(enemy.x - lamp.x) < 8 && enemy.floor === lamp.getData('floor')) {
+            if (Math.abs(enemy.x - lamp.x) < 8 && enemy.floor === lamp.floor) {
               enemy.die();
               this.getActiveScore().lampKill();
             }
@@ -561,42 +495,46 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.time.delayedCall(1500, () => {
-      player.respawn(30);
-    });
+    this.time.delayedCall(1500, () => player.respawn(30));
   }
 
   private endGame(): void {
     this.gameOver = true;
     const hi = Math.max(this.scoreManager.score, this.scoreManager2.score);
-    const stored = parseInt(localStorage.getItem('ea_highscore') ?? '0', 10);
-    if (hi > stored) localStorage.setItem('ea_highscore', String(hi));
+    if (hi > this.highScore) {
+      this.highScore = hi;
+      localStorage.setItem('ea_highscore', String(hi));
+    }
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'GAME OVER', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#ff4444',
+        fontFamily: '"Courier New", monospace',
+        fontSize: '12px',
+        color: '#ff4040',
+        resolution: 2,
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(200);
+      .setDepth(250);
 
-    this.time.delayedCall(3000, () => {
-      this.scene.start('Title');
-    });
+    this.time.delayedCall(3000, () => this.scene.start('Title'));
   }
 
-  private updateUI(): void {
+  private updateHud(): void {
     const p = this.getActivePlayer();
     const score = this.getActiveScore().score;
-    let text = `1UP ${String(score).padStart(6, '0')}  L${this.level}  F${p.currentFloor}`;
-    text += `  LIVES ${p.lives}`;
-    if (this.numPlayers === 2) {
-      text += `  P${this.activePlayerIndex + 1}`;
-    }
     const docs = FLOORS.flatMap((f) => f.doors).filter((d) => d.type === 'red' && !d.collected).length;
-    text += `  DOCS ${docs}`;
-    this.uiText.setText(text);
+
+    this.hud.update({
+      score,
+      highScore: Math.max(this.highScore, score),
+      lives: p.lives,
+      level: this.level,
+      floor: p.currentFloor,
+      docsRemaining: docs,
+      playerLabel: this.activePlayerIndex === 0 ? 'PLAYER-1' : 'PLAYER-2',
+      credit: 0,
+      alarm: this.alarm.active,
+    });
   }
 }

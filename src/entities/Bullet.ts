@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BULLET_SPEED, COLORS } from '../config/gameConfig';
+import { BULLET_SPEED } from '../config/gameConfig';
 
 export class Bullet extends Phaser.Physics.Arcade.Sprite {
   direction: 1 | -1 = 1;
@@ -10,10 +10,10 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDisplaySize(4, 2);
-    this.setTint(COLORS.bullet);
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
     body.setSize(4, 2);
+    this.setDepth(50);
   }
 
   fire(direction: 1 | -1, ownerTag: string): void {
