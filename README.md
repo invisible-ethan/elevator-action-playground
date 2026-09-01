@@ -2,6 +2,8 @@
 
 An unofficial fan recreation of Taito's 1983 arcade classic **Elevator Action**, built with TypeScript and Phaser 3.
 
+![Elevator Action title screen](docs/screenshots/elevator_action_title_screen.png)
+
 Play as Agent 17 ("Otto"), infiltrate a 30-story building, collect secret documents from red doors, and escape to your getaway car in the basement.
 
 ## Controls
