@@ -78,7 +78,66 @@
       }
       .actions .fire { background: #6a1a2a; border-color: #a03048; color: #ffd0d8; }
       .actions .jump { background: #1a4a6a; border-color: #3080a0; color: #d0f0ff; }
+      #boot-status {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        max-width: min(90vw, 480px);
+        padding: 16px 20px;
+        border: 2px solid #f8b0d0;
+        border-radius: 8px;
+        background: #10102a;
+        color: #f0f0ff;
+        font: 14px/1.5 monospace;
+        text-align: center;
+      }
+      #boot-status[hidden] {
+        display: none;
+      }
+      #boot-status code {
+        display: block;
+        margin-top: 8px;
+        color: #ffb0b0;
+        word-break: break-word;
+      }
     </style>
+    <script>
+      // Turns a silent black screen into a readable message if the game fails to start.
+      (function () {
+        var started = false;
+        var lastError = '';
+        function show(message) {
+          var box = document.getElementById('boot-status');
+          if (!box) return;
+          box.hidden = false;
+          box.querySelector('span').textContent = message;
+          box.querySelector('code').textContent = lastError;
+        }
+        window.eaStarted = function () {
+          started = true;
+        };
+        window.eaError = function (message) {
+          lastError = message;
+          show('Elevator Action hit an error.');
+        };
+        // Capture phase also catches a <script> that fails to load, which does not bubble.
+        window.addEventListener(
+          'error',
+          function (e) {
+            if (started) return;
+            var src = e && e.target && e.target.src;
+            lastError = src ? 'Could not load ' + src : (e && e.message) || lastError;
+          },
+          true,
+        );
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            if (!started) show("Elevator Action couldn't start. Try reloading; if it keeps happening, the game's script failed to load.");
+          }, 3000);
+        });
+      })();
+    </script>
   </head>
   <body>
     <canvas id="screen" width="256" height="224" aria-label="Elevator Action game screen"></canvas>
@@ -96,6 +155,7 @@
         <div class="btn round fire" data-action="fire">FIRE</div>
       </div>
     </div>
+    <div id="boot-status" role="alert" hidden><span></span><code></code></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

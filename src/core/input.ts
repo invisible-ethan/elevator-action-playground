@@ -72,7 +72,13 @@ export class InputManager {
 
   private pollGamepad(): Set<Action> {
     const out = new Set<Action>();
-    const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
+    let pads: (Gamepad | null)[] = [];
+    try {
+      // Throws when the page's permissions policy (or an embedding frame) disallows gamepads.
+      if (typeof navigator !== 'undefined' && navigator.getGamepads) pads = navigator.getGamepads();
+    } catch {
+      /* gamepads unavailable: keyboard and touch still work */
+    }
     for (const pad of pads) {
       if (!pad) continue;
       const b = (i: number) => !!pad.buttons[i]?.pressed;
