@@ -66,11 +66,34 @@ npm run build      # production build in dist/
 The high score and mute setting are saved in `localStorage`. While the game runs, `window.game.debugWorld`
 exposes the live simulation for play-testing from the browser console.
 
+## Google ads
+
+The page has room for two Google AdSense ads, one on each side of the game. They only appear on screens
+at least 1000 px wide, so phones and narrow windows are unaffected.
+
+- The AdSense script for publisher `ca-pub-6470972930893111` is loaded in `index.html`. Google also uses it
+  to verify the site.
+- `public/ads.txt` is published at `/ads.txt` automatically.
+- `public/privacy.html` is the privacy policy that AdSense requires. It's linked at the bottom right of the
+  game page.
+
+To turn the ads on after AdSense approves the site:
+
+1. In AdSense, create two vertical **display ad units** (Ads → By ad unit → Display ads).
+2. Paste their slot IDs into `AD_SLOTS` in `src/ads.ts`. Until then the columns stay hidden and the game
+  uses the full width.
+3. Set up a consent message for UK/EU visitors in AdSense under **Privacy & messaging → European
+  regulations**.
+
+To test without counting impressions, set `AD_TEST_MODE = true` in `src/ads.ts`, and never click your own
+ads. If an ad blocker stops Google's script, the columns just stay empty.
+
 ## Project layout
 
 ```
 src/
   main.ts              game loop (fixed 60 Hz), title/play screens, canvas scaling, touch controls
+  ads.ts               AdSense ad units in the side columns (slot IDs go here)
   core/
     rng.ts             seeded PRNG, so buildings and tests are reproducible
     input.ts           keyboard, gamepad and touch input with edge-triggered presses

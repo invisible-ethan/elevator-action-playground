@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#000018" />
     <title>Elevator Action</title>
+    <script
+      async
+      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6470972930893111"
+      crossorigin="anonymous"
+    ></script>
     <style>
       * {
         margin: 0;
@@ -26,6 +31,35 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
+      }
+      #stage {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+      }
+      /* Ad rails beside the game: only on wide screens, and only once ad units are configured. */
+      .ad-rail {
+        display: none;
+        flex: none;
+        width: 160px;
+        height: 600px;
+      }
+      @media (min-width: 1000px) {
+        body.ads .ad-rail {
+          display: block;
+        }
+      }
+      #privacy-link {
+        position: fixed;
+        right: 10px;
+        bottom: 6px;
+        color: #6a6a90;
+        font: 11px monospace;
+        text-decoration: none;
+      }
+      #privacy-link:hover {
+        color: #b0b0e0;
       }
       #screen {
         display: block;
@@ -127,6 +161,8 @@
           function (e) {
             if (started) return;
             var src = e && e.target && e.target.src;
+            // Ad blockers routinely block the AdSense script; that is not a game failure.
+            if (src && src.indexOf('googlesyndication') !== -1) return;
             lastError = src ? 'Could not load ' + src : (e && e.message) || lastError;
           },
           true,
@@ -140,7 +176,11 @@
     </script>
   </head>
   <body>
-    <canvas id="screen" width="256" height="224" aria-label="Elevator Action game screen"></canvas>
+    <div id="stage">
+      <aside class="ad-rail" data-side="left" aria-label="Advertisement"></aside>
+      <canvas id="screen" width="256" height="224" aria-label="Elevator Action game screen"></canvas>
+      <aside class="ad-rail" data-side="right" aria-label="Advertisement"></aside>
+    </div>
     <div id="pad">
       <div class="dpad">
         <div class="btn up" data-action="up">▲</div>
@@ -155,6 +195,7 @@
         <div class="btn round fire" data-action="fire">FIRE</div>
       </div>
     </div>
+    <a id="privacy-link" href="./privacy.html">Privacy</a>
     <div id="boot-status" role="alert" hidden><span></span><code></code></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
