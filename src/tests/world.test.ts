@@ -82,18 +82,64 @@ describe('world', () => {
     expect(Math.abs(w.player.x - s.x)).toBeGreaterThanOrEqual(PLAYER_SHAFT_STOP);
   });
 
-  it('stops at an open shaft when the car is elsewhere', () => {
+  it('is stopped by a car passing through the floor', () => {
     const w = playing(6);
     const s = w.b.shafts.find((sh) => sh.max - sh.min >= 3 && sh.max < ROOF)!;
     const f = s.min + 1;
     const car = w.cars[s.id];
+    car.y = floorY(f) - 1;
+    car.state = 'move';
+    car.dir = -1;
+    place(w, f, s.x - 18);
+    hold(w, { right: true }, 3);
+    expect(w.player.mode).toBe('walk');
+    expect(w.player.x).toBe(s.x - PLAYER_SHAFT_STOP);
+  });
+
+  it('falls down an empty shaft onto the roof of the car a floor below and survives', () => {
+    const w = playing(18);
+    const s = w.b.shafts.find((sh) => sh.max - sh.min >= 3 && sh.max < ROOF)!;
+    const f = s.min + 3;
+    const car = w.cars[s.id];
+    car.y = floorY(s.min + 1);
+    car.state = 'wait';
+    car.wait = 10000;
+    place(w, f, s.x - 20);
+    hold(w, { right: true }, 6);
+    expect(w.player.mode).toBe('fall');
+    hold(w, {}, 40);
+    expect(w.player.mode).toBe('roof');
+    expect(w.player.y).toBe(floorY(s.min + 2));
+    expect(w.status).toBe('play');
+  });
+
+  it('dies falling more than a floor down an empty shaft', () => {
+    const w = playing(19);
+    const s = w.b.shafts.find((sh) => sh.max - sh.min >= 4 && sh.max < ROOF)!;
+    const car = w.cars[s.id];
     car.y = floorY(s.max);
     car.state = 'wait';
     car.wait = 10000;
-    place(w, f, s.x - 30);
-    hold(w, { right: true }, 40);
+    place(w, s.min + 2, s.x - 20);
+    hold(w, { right: true }, 6);
+    hold(w, {}, 60);
+    expect(w.status).toBe('dying');
+    expect(w.player.deathKind).toBe('fall');
+    expect(w.player.y).toBe(floorY(s.min));
+  });
+
+  it('walks into an empty shaft on its bottom floor without falling', () => {
+    const w = playing(20);
+    const s = w.b.shafts.find((sh) => sh.max - sh.min >= 2 && sh.max < ROOF && sh.min > 0)!;
+    const car = w.cars[s.id];
+    car.y = floorY(s.max);
+    car.state = 'wait';
+    car.wait = 10000;
+    place(w, s.min, s.x - 20);
+    hold(w, { right: true }, 20);
     expect(w.player.mode).toBe('walk');
-    expect(w.player.x).toBe(s.x - PLAYER_SHAFT_STOP);
+    expect(w.player.floor).toBe(s.min);
+    expect(w.player.x).toBe(s.x);
   });
 
   it('shoots an enemy for 100 points', () => {
@@ -267,7 +313,8 @@ describe('world', () => {
         expect(p.floor).toBeLessThanOrEqual(ROOF);
         if (p.mode === 'walk') {
           for (const s of w.b.shafts) {
-            if (p.floor < s.min || p.floor > s.max) continue;
+            // Only a shaft's bottom floor is solid enough to stand in.
+            if (p.floor <= s.min || p.floor > s.max) continue;
             expect(Math.abs(p.x - s.x)).toBeGreaterThanOrEqual(PLAYER_SHAFT_STOP - 1e-6);
           }
         }

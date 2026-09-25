@@ -34,6 +34,9 @@ On phones and tablets, on-screen touch controls appear automatically.
 - Walk into an elevator car when it is level with your floor, then hold ↑ or ↓ to drive it. It always
   stops level with a floor. You can also step onto a car's roof and ride on top of it, but don't let it
   carry you into the top of the shaft.
+- Walk into a shaft when the car isn't there and you fall. A drop of about one floor onto a car roof or
+  the shaft floor is safe; anything further kills you. The bottom floor of a shaft is solid, but don't
+  stand there when a car comes down.
 - Enemy agents come out of the blue doors. They fire either **high** (duck under it) or **low** (jump over
   it).
 - Take out enemies by shooting them (100), jump-kicking them (150), dropping a ceiling lamp on them (150),

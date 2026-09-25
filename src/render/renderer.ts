@@ -502,7 +502,7 @@ function drawPlayer(ctx: CanvasRenderingContext2D, w: World, dark: boolean): voi
   }
 
   let frame: FrameName = 'stand';
-  if (p.jumpY > 0) frame = 'jump';
+  if (p.jumpY > 0 || p.mode === 'fall') frame = 'jump';
   else if (p.crouch) frame = 'crouch';
   else if (p.shootT > 0) frame = 'shoot';
   else if (p.moving) frame = walkFrame(p.walkT);
