@@ -1,5 +1,5 @@
 import { Rng } from '../core/rng';
-import { generateBuilding, type Building, type Door, type Escalator } from './building';
+import { generateBuilding, type Building, type Door, type Escalator, type Shaft } from './building';
 import {
   BASEMENT,
   BODY_HALF,
@@ -21,6 +21,7 @@ import {
   PLAYER_BULLET_SPEED,
   PLAYER_SHAFT_STOP,
   ROOF,
+  SAFE_FALL,
   SCORE,
   SHAFT_HALF,
   STAND_H,
@@ -54,8 +55,8 @@ export const NO_INPUT: Input = {
 };
 
 export type Facing = -1 | 1;
-export type PlayerMode = 'zip' | 'walk' | 'car' | 'roof' | 'esc' | 'door' | 'dead' | 'drive';
-export type DeathKind = 'shot' | 'kick' | 'lamp' | 'crush';
+export type PlayerMode = 'zip' | 'walk' | 'car' | 'roof' | 'esc' | 'door' | 'fall' | 'dead' | 'drive';
+export type DeathKind = 'shot' | 'kick' | 'lamp' | 'crush' | 'fall';
 
 export interface Player {
   x: number;
@@ -77,6 +78,9 @@ export interface Player {
   door: Door | null;
   /** Set on boarding a car so a held direction does not carry you straight out the other side. */
   boardLock: boolean;
+  /** The shaft being fallen down, and the height the fall started from. */
+  fallShaft: Shaft | null;
+  fallFromY: number;
   /** Frames spent in the current mode. */
   t: number;
   invuln: number;
@@ -262,6 +266,8 @@ export class World {
       escDown: false,
       door: null,
       boardLock: false,
+      fallShaft: null,
+      fallFromY: 0,
       t: 0,
       invuln: 0,
       hidden: false,
@@ -379,6 +385,9 @@ export class World {
       case 'door':
         this.updateDoor();
         break;
+      case 'fall':
+        this.updateFall();
+        break;
       default:
         break;
     }
@@ -452,7 +461,11 @@ export class World {
     if (input.fire) this.firePlayer();
   }
 
-  /** Walk along the current floor, stepping into / onto elevator cars or stopping at open shafts. */
+  /**
+   * Walk along the current floor. At a shaft the player steps into a waiting car or onto its roof,
+   * is stopped by a car passing through, or otherwise falls down the empty shaft. The bottom floor
+   * of a shaft is solid, so there you just walk in.
+   */
   private movePlayer(dx: number): void {
     const p = this.player;
     let nx = Math.max(WALL_L + 6, Math.min(WALL_R - 6, p.x + dx));
@@ -474,9 +487,61 @@ export class World {
         p.x = s.x + Math.sign(d0) * (SHAFT_HALF - 1);
         return;
       }
+      const carInRoom = car.y > floorY(p.floor) - FLOOR_H && car.y - FLOOR_H < floorY(p.floor);
+      if (!airborne && !carInRoom) {
+        if (p.floor === s.min) continue;
+        this.startFall(s, d0);
+        return;
+      }
       nx = s.x + Math.sign(d0 || -dx) * PLAYER_SHAFT_STOP;
     }
     p.x = nx;
+  }
+
+  private startFall(s: Shaft, side: number): void {
+    const p = this.player;
+    p.mode = 'fall';
+    p.fallShaft = s;
+    p.fallFromY = p.y;
+    p.x = s.x + Math.sign(side) * (SHAFT_HALF - BODY_HALF);
+    p.vy = 0;
+    p.crouch = false;
+    p.car = null;
+  }
+
+  /** Drop down the shaft until landing on the roof of the car below or on the shaft floor. */
+  private updateFall(): void {
+    const p = this.player;
+    const s = p.fallShaft!;
+    const car = this.cars[s.id];
+    const prev = p.y;
+    p.vy = Math.min(p.vy + GRAVITY, 4);
+    p.y += p.vy;
+    const roof = car.y - FLOOR_H;
+    // The small margin catches a car rising to meet the player between frames.
+    if (prev <= roof + 2 && p.y >= roof) {
+      p.y = roof;
+      p.mode = 'roof';
+      p.car = car;
+      this.landFall();
+      return;
+    }
+    const bottom = floorY(s.min);
+    if (p.y >= bottom) {
+      p.y = bottom;
+      p.mode = 'walk';
+      p.floor = s.min;
+      this.landFall();
+      return;
+    }
+    p.floor = roomFloor(p.y);
+  }
+
+  private landFall(): void {
+    const p = this.player;
+    p.vy = 0;
+    p.fallShaft = null;
+    if (p.y - p.fallFromY > SAFE_FALL) this.killPlayer('fall');
   }
 
   private boardCar(car: Car): void {
@@ -726,13 +791,17 @@ export class World {
   private playerVulnerable(): boolean {
     const p = this.player;
     if (this.status !== 'play' || p.hidden || p.invuln > 0) return false;
-    return p.mode === 'walk' || p.mode === 'car' || p.mode === 'roof' || p.mode === 'esc';
+    return (
+      p.mode === 'walk' || p.mode === 'car' || p.mode === 'roof' || p.mode === 'esc' || p.mode === 'fall'
+    );
   }
 
   private playerVisible(): boolean {
     const p = this.player;
     if (this.status !== 'play' || p.hidden) return false;
-    return p.mode === 'walk' || p.mode === 'car' || p.mode === 'roof' || p.mode === 'esc';
+    return (
+      p.mode === 'walk' || p.mode === 'car' || p.mode === 'roof' || p.mode === 'esc' || p.mode === 'fall'
+    );
   }
 
   // ---------------------------------------------------------------- scoring
@@ -774,7 +843,9 @@ export class World {
       if (e.state === 'active' && hits(e.x, e.y)) this.killEnemy(e, 'crush');
     }
     const p = this.player;
-    if (p.mode === 'walk' && this.playerVulnerable() && hits(p.x, p.y)) this.killPlayer('crush');
+    if ((p.mode === 'walk' || p.mode === 'fall') && this.playerVulnerable() && hits(p.x, p.y)) {
+      this.killPlayer('crush');
+    }
   }
 
   // ---------------------------------------------------------------- enemies

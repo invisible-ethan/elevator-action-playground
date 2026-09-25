@@ -56,6 +56,9 @@ export const CAR_PLAYER_SPEED = 1.4;
 
 export const ESC_FRAMES = FLOOR_H;
 
+/** The longest drop down a shaft the player survives (about one floor). */
+export const SAFE_FALL = FLOOR_H + 8;
+
 export const SCORE = {
   shot: 100,
   kick: 150,
