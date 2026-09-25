@@ -402,13 +402,17 @@ export class World {
     const airborne = p.jumpY > 0 || p.vy > 0;
 
     if (airborne) {
+      const prevY = floorY(p.floor) - p.jumpY;
       p.jumpY += p.vy;
       p.vy -= GRAVITY;
-      if (p.jumpDx) this.movePlayer(p.jumpDx);
+      if (p.jumpDx) this.movePlayer(p.jumpDx, true);
+      if (p.mode !== 'walk' || this.landOnRisingCar(prevY)) return;
       if (p.jumpY <= 0) {
         p.jumpY = 0;
         p.vy = 0;
         p.jumpDx = 0;
+        this.landJump();
+        if (p.mode !== 'walk') return;
       } else if (p.jumpY > 4) {
         this.checkJumpKick();
       }
@@ -464,12 +468,12 @@ export class World {
   /**
    * Walk along the current floor. At a shaft the player steps into a waiting car or onto its roof,
    * is stopped by a car passing through, or otherwise falls down the empty shaft. The bottom floor
-   * of a shaft is solid, so there you just walk in.
+   * of a shaft is solid, so there you just walk in. A jump sails over the open shaft; where it
+   * comes down is settled in landJump().
    */
-  private movePlayer(dx: number): void {
+  private movePlayer(dx: number, airborne = false): void {
     const p = this.player;
     let nx = Math.max(WALL_L + 6, Math.min(WALL_R - 6, p.x + dx));
-    const airborne = p.jumpY > 0;
     for (const s of this.b.shafts) {
       if (p.floor < s.min || p.floor > s.max) continue;
       const d0 = p.x - s.x;
@@ -488,14 +492,65 @@ export class World {
         return;
       }
       const carInRoom = car.y > floorY(p.floor) - FLOOR_H && car.y - FLOOR_H < floorY(p.floor);
-      if (!airborne && !carInRoom) {
-        if (p.floor === s.min) continue;
+      if (!carInRoom) {
+        if (airborne || p.floor === s.min) continue;
         this.startFall(s, d0);
         return;
       }
       nx = s.x + Math.sign(d0 || -dx) * PLAYER_SHAFT_STOP;
     }
     p.x = nx;
+  }
+
+  /** The shaft whose opening (or its lip) on the player's floor is under x. */
+  private shaftUnder(x: number): Shaft | undefined {
+    const f = this.player.floor;
+    return this.b.shafts.find((s) => f >= s.min && f <= s.max && Math.abs(x - s.x) < PLAYER_SHAFT_STOP);
+  }
+
+  /**
+   * Coming down from a jump over a shaft: the lip of the opening (within a few pixels of its edge)
+   * still counts as floor, a car roof level with the floor or the shaft's solid bottom floor can be
+   * landed on, and anywhere else over the opening the player drops down the shaft.
+   */
+  private landJump(): void {
+    const p = this.player;
+    const s = this.shaftUnder(p.x);
+    if (!s) return;
+    const d = p.x - s.x;
+    if (Math.abs(d) >= SHAFT_HALF) {
+      p.x = s.x + Math.sign(d) * PLAYER_SHAFT_STOP;
+      return;
+    }
+    if (p.floor === s.min) return;
+    const car = this.cars[s.id];
+    p.y = floorY(p.floor);
+    if (carRoofFloor(car) === p.floor) {
+      p.mode = 'roof';
+      p.car = car;
+      p.crouch = false;
+      return;
+    }
+    this.startFall(s, d);
+  }
+
+  /** A car rising up the shaft under a jumping player catches them on its roof. */
+  private landOnRisingCar(prevY: number): boolean {
+    const p = this.player;
+    const s = this.shaftUnder(p.x);
+    if (!s || Math.abs(p.x - s.x) >= SHAFT_HALF) return false;
+    const car = this.cars[s.id];
+    const roof = car.y - FLOOR_H;
+    const feet = floorY(p.floor) - Math.max(0, p.jumpY);
+    if (roof >= floorY(p.floor) || prevY > roof + 2 || feet < roof) return false;
+    p.mode = 'roof';
+    p.car = car;
+    p.y = roof;
+    p.jumpY = 0;
+    p.vy = 0;
+    p.jumpDx = 0;
+    p.crouch = false;
+    return true;
   }
 
   private startFall(s: Shaft, side: number): void {

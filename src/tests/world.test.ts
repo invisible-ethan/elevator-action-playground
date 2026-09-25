@@ -142,6 +142,66 @@ describe('world', () => {
     expect(w.player.x).toBe(s.x);
   });
 
+  describe('jumping at a shaft', () => {
+    /** A shaft with its car parked at the top, well away from the floor the agent jumps on. */
+    function emptyShaft(seed: number) {
+      const w = playing(seed);
+      const s = w.b.shafts.find((sh) => sh.max - sh.min >= 4 && sh.max < ROOF)!;
+      const car = w.cars[s.id];
+      car.y = floorY(s.max);
+      car.state = 'wait';
+      car.wait = 10000;
+      return { w, s, car, f: s.min + 2 };
+    }
+
+    it('clears an empty shaft when taking off from its edge', () => {
+      const { w, s, f } = emptyShaft(21);
+      place(w, f, s.x - PLAYER_SHAFT_STOP);
+      hold(w, { jump: true, right: true }, 1);
+      hold(w, {}, 40);
+      expect(w.player.mode).toBe('walk');
+      expect(w.player.floor).toBe(f);
+      expect(w.player.x).toBe(s.x + PLAYER_SHAFT_STOP);
+    });
+
+    it('lands safely on the lip when a few pixels short', () => {
+      const { w, s, f } = emptyShaft(22);
+      place(w, f, s.x - 20);
+      hold(w, { jump: true, right: true }, 1);
+      hold(w, {}, 40);
+      expect(w.player.mode).toBe('walk');
+      expect(w.player.x).toBe(s.x + PLAYER_SHAFT_STOP);
+    });
+
+    it('drops down the shaft when the jump comes up short', () => {
+      const { w, s, f } = emptyShaft(23);
+      place(w, f, s.x - 30);
+      hold(w, { jump: true, right: true }, 1);
+      hold(w, {}, 34);
+      expect(w.player.mode).toBe('fall');
+    });
+
+    it('is stopped by a car standing at the floor', () => {
+      const { w, s, car, f } = emptyShaft(24);
+      car.y = floorY(f);
+      place(w, f, s.x - PLAYER_SHAFT_STOP);
+      hold(w, { jump: true, right: true }, 1);
+      hold(w, {}, 40);
+      expect(w.player.mode).toBe('walk');
+      expect(w.player.x).toBe(s.x - PLAYER_SHAFT_STOP);
+    });
+
+    it('lands on the roof of a car level with the floor', () => {
+      const { w, s, car, f } = emptyShaft(25);
+      car.y = floorY(f - 1);
+      place(w, f, s.x - 30);
+      hold(w, { jump: true, right: true }, 1);
+      hold(w, {}, 34);
+      expect(w.player.mode).toBe('roof');
+      expect(w.player.y).toBe(floorY(f));
+    });
+  });
+
   it('shoots an enemy for 100 points', () => {
     const w = playing(7);
     const f = quietFloor(w, 100);
@@ -311,7 +371,8 @@ describe('world', () => {
         expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true);
         expect(p.floor).toBeGreaterThanOrEqual(BASEMENT);
         expect(p.floor).toBeLessThanOrEqual(ROOF);
-        if (p.mode === 'walk') {
+        // Mid-jump the agent may be over an opening; once down they must be on solid floor.
+        if (p.mode === 'walk' && p.jumpY === 0) {
           for (const s of w.b.shafts) {
             // Only a shaft's bottom floor is solid enough to stand in.
             if (p.floor <= s.min || p.floor > s.max) continue;
