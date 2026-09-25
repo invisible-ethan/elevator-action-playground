@@ -1,3 +1,4 @@
+import { adsEnabled, railSpace, setupAds } from './ads';
 import { Sound } from './core/audio';
 import { InputManager, type Action } from './core/input';
 import { renderPause, renderTitle, renderWorld } from './render/renderer';
@@ -95,7 +96,8 @@ class Game {
 function fitCanvas(canvas: HTMLCanvasElement): void {
   const touch = document.body.classList.contains('touch');
   const availH = window.innerHeight * (touch ? 0.62 : 1);
-  const scale = Math.min(window.innerWidth / SCREEN_W, availH / SCREEN_H);
+  const availW = window.innerWidth - railSpace(window.innerWidth, adsEnabled());
+  const scale = Math.min(availW / SCREEN_W, availH / SCREEN_H);
   const s = scale >= 1 ? Math.floor(scale * 2) / 2 : scale;
   canvas.style.width = `${Math.floor(SCREEN_W * s)}px`;
   canvas.style.height = `${Math.floor(SCREEN_H * s)}px`;
@@ -134,6 +136,7 @@ function main(): void {
   const game = new Game(ctx, input, sound);
   (window as unknown as { game: Game }).game = game;
 
+  setupAds();
   fitCanvas(canvas);
   window.addEventListener('resize', () => fitCanvas(canvas));
 
