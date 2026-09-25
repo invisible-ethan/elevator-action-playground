@@ -1,6 +1,6 @@
 import { Rng } from '../core/rng';
 import type { Shaft } from './building';
-import { CAR_AUTO_SPEED, CAR_PLAYER_SPEED, CAR_WAIT, floorY, roomFloor } from './constants';
+import { CAR_AUTO_SPEED, CAR_PLAYER_SPEED, CAR_WAIT, FLOOR_H, floorY, roomFloor } from './constants';
 
 export interface Car {
   id: number;
@@ -77,8 +77,14 @@ export function updateCar(car: Car, ctl: CarControl | null): boolean {
     if (car.state === 'wait') return false;
   }
 
-  car.y += car.dir * (ctl ? CAR_PLAYER_SPEED : CAR_AUTO_SPEED);
-  // Clamp against odd speeds so the car can never leave its shaft.
+  // Speeds are fractional, so snap onto the next floor line once the car reaches or passes it.
+  const before = car.y;
+  const nextLine =
+    car.dir === 1
+      ? (Math.floor(before / FLOOR_H) + 1) * FLOOR_H
+      : (Math.ceil(before / FLOOR_H) - 1) * FLOOR_H;
+  car.y = before + car.dir * (ctl ? CAR_PLAYER_SPEED : CAR_AUTO_SPEED);
+  if ((car.dir === 1 && car.y >= nextLine) || (car.dir === -1 && car.y <= nextLine)) car.y = nextLine;
   car.y = Math.min(floorY(min), Math.max(floorY(max), car.y));
   const f = carFloor(car);
   if (f === null) return false;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../core/rng';
 import type { Shaft } from '../sim/building';
-import { floorY } from '../sim/constants';
+import { CAR_AUTO_SPEED, CAR_PLAYER_SPEED, FLOOR_H, floorY } from '../sim/constants';
 import { carFloor, createCar, updateCar } from '../sim/elevator';
 
 const shaft: Shaft = { id: 0, slot: 1, x: 128, min: 3, max: 8 };
@@ -42,5 +42,36 @@ describe('elevator car', () => {
     for (let i = 0; i < 200; i++) updateCar(car, { up: false, down: true });
     expect(carFloor(car)).toBe(shaft.min);
     expect(car.state).toBe('wait');
+  });
+
+  it('travels at 70% of the original speed and still lands exactly on each floor', () => {
+    expect(CAR_AUTO_SPEED).toBeCloseTo(0.7);
+    expect(CAR_PLAYER_SPEED).toBeCloseTo(1.4);
+    const car = createCar(shaft, new Rng(4));
+    car.y = floorY(5);
+    car.state = 'wait';
+    let frames = 0;
+    updateCar(car, { up: true, down: false });
+    frames++;
+    while (car.state === 'move') {
+      updateCar(car, { up: false, down: false });
+      frames++;
+    }
+    expect(frames).toBe(Math.ceil(FLOOR_H / CAR_PLAYER_SPEED));
+    expect(car.y).toBe(floorY(6));
+
+    car.driven = false;
+    car.wait = 1;
+    car.dir = -1;
+    frames = 0;
+    // The wait runs out on this frame and the car moves off.
+    updateCar(car, null);
+    frames++;
+    while (car.state === 'move') {
+      updateCar(car, null);
+      frames++;
+    }
+    expect(frames).toBe(Math.ceil(FLOOR_H / CAR_AUTO_SPEED));
+    expect(car.y).toBe(floorY(7));
   });
 });

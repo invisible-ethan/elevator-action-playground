@@ -361,13 +361,14 @@ function drawShaft(ctx: CanvasRenderingContext2D, s: Shaft, botF: number, topF: 
 function drawCarBack(ctx: CanvasRenderingContext2D, car: Car, C: Colors): void {
   const x = car.x - SHAFT_HALF + 1;
   const w = SHAFT_HALF * 2 - 2;
-  const top = car.y - FLOOR_H;
+  const y = Math.round(car.y);
+  const top = y - FLOOR_H;
   ctx.fillStyle = C.car;
   ctx.fillRect(x, top, w, FLOOR_H);
   ctx.fillStyle = C.carBack;
   ctx.fillRect(x + 3, top + 5, w - 6, FLOOR_H - 8);
   ctx.fillStyle = C.carShade;
-  ctx.fillRect(x, car.y - 2, w, 2);
+  ctx.fillRect(x, y - 2, w, 2);
   // Ceiling light
   ctx.fillStyle = C.lampGlow;
   ctx.fillRect(car.x - 3, top + 3, 6, 1);
@@ -376,13 +377,14 @@ function drawCarBack(ctx: CanvasRenderingContext2D, car: Car, C: Colors): void {
 function drawCarFront(ctx: CanvasRenderingContext2D, car: Car, C: Colors): void {
   const x = car.x - SHAFT_HALF + 1;
   const w = SHAFT_HALF * 2 - 2;
-  const top = car.y - FLOOR_H;
+  const y = Math.round(car.y);
+  const top = y - FLOOR_H;
   ctx.fillStyle = C.carFrame;
   ctx.fillRect(x, top, w, 2);
   ctx.fillRect(x, top, 2, FLOOR_H);
   ctx.fillRect(x + w - 2, top, 2, FLOOR_H);
   ctx.fillStyle = C.carShade;
-  ctx.fillRect(x, car.y - 1, w, 1);
+  ctx.fillRect(x, y - 1, w, 1);
 }
 
 function drawRoof(ctx: CanvasRenderingContext2D, w: World): void {

@@ -51,8 +51,8 @@ export const PLAYER_SHAFT_STOP = SHAFT_HALF + BODY_HALF - 1;
 export const ENEMY_SHAFT_STOP = SHAFT_HALF + 1;
 
 export const CAR_WAIT = 50;
-export const CAR_AUTO_SPEED = 1;
-export const CAR_PLAYER_SPEED = 2;
+export const CAR_AUTO_SPEED = 0.7;
+export const CAR_PLAYER_SPEED = 1.4;
 
 export const ESC_FRAMES = FLOOR_H;
 
