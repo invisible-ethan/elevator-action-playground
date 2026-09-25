@@ -139,20 +139,50 @@ function main(): void {
 
   let last = performance.now();
   let acc = 0;
+  let reported = false;
   const loop = (now: number) => {
-    acc += Math.min(250, now - last);
-    last = now;
-    let steps = 0;
-    while (acc >= STEP && steps < 5) {
-      game.update();
-      acc -= STEP;
-      steps++;
-    }
-    if (steps === 5) acc = 0;
-    game.render();
+    // Schedule the next frame first so one bad frame can never stop the game for good.
     requestAnimationFrame(loop);
+    try {
+      acc += Math.min(250, now - last);
+      last = now;
+      let steps = 0;
+      while (acc >= STEP && steps < 5) {
+        game.update();
+        acc -= STEP;
+        steps++;
+      }
+      if (steps === 5) acc = 0;
+      game.render();
+    } catch (err) {
+      if (!reported) {
+        reported = true;
+        console.error(err);
+        showBootError(err);
+      }
+    }
   };
   requestAnimationFrame(loop);
+  markStarted();
 }
 
-main();
+/** Hooks provided by the inline boot script in index.html. */
+interface BootHooks {
+  eaStarted?: () => void;
+  eaError?: (message: string) => void;
+}
+
+function markStarted(): void {
+  (window as BootHooks).eaStarted?.();
+}
+
+function showBootError(err: unknown): void {
+  (window as BootHooks).eaError?.(err instanceof Error ? err.message : String(err));
+}
+
+try {
+  main();
+} catch (err) {
+  console.error(err);
+  showBootError(err);
+}
