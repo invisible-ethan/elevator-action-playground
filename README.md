@@ -37,6 +37,9 @@ On phones and tablets, on-screen touch controls appear automatically.
 - Walk into a shaft when the car isn't there and you fall. A drop of about one floor onto a car roof or
   the shaft floor is safe; anything further kills you. The bottom floor of a shaft is solid, but don't
   stand there when a car comes down.
+- You can also jump across an empty shaft. Take off from the edge and you just make it (landing a few
+  pixels short still counts). Take off early and you drop down the shaft. A car standing at your floor
+  blocks the jump.
 - Enemy agents come out of the blue doors. They fire either **high** (duck under it) or **low** (jump over
   it).
 - Take out enemies by shooting them (100), jump-kicking them (150), dropping a ceiling lamp on them (150),
